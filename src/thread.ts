@@ -1,4 +1,4 @@
-import { WASocket, prepareWAMessageMedia } from 'baileys';
+import { WASocket } from 'baileys';
 import type { PostableMessage, PostableButtons } from './types';
 import { registerCallback } from './chat';
 import {
@@ -188,7 +188,6 @@ export class Thread {
 		if (content instanceof RichMessageElement) {
 			const text = content.text;
 			const footer = content.options?.footer;
-			const header = content.options?.header;
 			const components = content.options?.components || [];
 
 			if (components.length > 0) {
@@ -206,7 +205,7 @@ export class Thread {
 								id: buttonIdJson
 							})
 						};
-					} else if (comp instanceof LinkButtonElement) {
+					} else {
 						// LinkButtonElement
 						return {
 							name: 'cta_url',
@@ -216,106 +215,13 @@ export class Thread {
 								merchant_url: comp.url
 							})
 						};
-					} else {
-						// ListElement
-						const config = comp.config;
-						const formattedSections = config.sections.map((section, secIndex) => {
-							return {
-								title: section.title,
-								rows: section.rows.map((row, rowIndex) => {
-									const rowKey = JSON.stringify({
-										stableId: comp.id,
-										sec: secIndex,
-										row: rowIndex
-									});
-									return {
-										title: row.title,
-										description: row.description,
-										id: rowKey
-									};
-								})
-							};
-						});
-						return {
-							name: 'single_select',
-							buttonParamsJson: JSON.stringify({
-								title: config.buttonText,
-								sections: formattedSections
-							})
-						};
 					}
 				});
-
-				let headerPayload: any = undefined;
-				if (content.options?.headerImage) {
-					try {
-						const media = await prepareWAMessageMedia(
-							typeof content.options.headerImage === 'string' 
-								? { image: { url: content.options.headerImage } } 
-								: { image: content.options.headerImage },
-							{ upload: this.socket.waUploadToServer }
-						);
-						headerPayload = {
-							hasMediaAttachment: true,
-							imageMessage: media.imageMessage
-						};
-					} catch (err) {
-						console.error('[Conversa SDK] Error al preparar media header image:', err);
-						if (header) {
-							headerPayload = { title: header, hasMediaAttachment: false };
-						}
-					}
-				} else if (content.options?.headerVideo) {
-					try {
-						const media = await prepareWAMessageMedia(
-							typeof content.options.headerVideo === 'string' 
-								? { video: { url: content.options.headerVideo } } 
-								: { video: content.options.headerVideo },
-							{ upload: this.socket.waUploadToServer }
-						);
-						headerPayload = {
-							hasMediaAttachment: true,
-							videoMessage: media.videoMessage
-						};
-					} catch (err) {
-						console.error('[Conversa SDK] Error al preparar media header video:', err);
-						if (header) {
-							headerPayload = { title: header, hasMediaAttachment: false };
-						}
-					}
-				} else if (content.options?.headerDocument) {
-					try {
-						const media = await prepareWAMessageMedia(
-							{
-								document: typeof content.options.headerDocument === 'string' 
-									? { url: content.options.headerDocument } 
-									: content.options.headerDocument,
-								mimetype: content.options.headerDocumentMimetype || 'application/octet-stream'
-							} as any,
-							{ upload: this.socket.waUploadToServer }
-						);
-						headerPayload = {
-							hasMediaAttachment: true,
-							documentMessage: media.documentMessage
-						};
-					} catch (err) {
-						console.error('[Conversa SDK] Error al preparar media header document:', err);
-						if (header) {
-							headerPayload = { title: header, hasMediaAttachment: false };
-						}
-					}
-				} else if (header) {
-					headerPayload = {
-						title: header,
-						hasMediaAttachment: false
-					};
-				}
 
 				const payload = {
 					viewOnceMessage: {
 						message: {
 							interactiveMessage: {
-								header: headerPayload,
 								body: {
 									text: text
 								},
@@ -331,29 +237,6 @@ export class Thread {
 				};
 
 				return this.socket.sendMessage(this.jid, payload as any);
-			}
-
-			// Si no hay botones pero hay elementos multimedia en las opciones
-			if (content.options?.headerImage) {
-				const source = content.options.headerImage;
-				return this.socket.sendMessage(this.jid, {
-					image: typeof source === 'string' ? { url: source } : source,
-					caption: text
-				} as any);
-			}
-			if (content.options?.headerVideo) {
-				const source = content.options.headerVideo;
-				return this.socket.sendMessage(this.jid, {
-					video: typeof source === 'string' ? { url: source } : source,
-					caption: text
-				} as any);
-			}
-			if (content.options?.headerDocument) {
-				const source = content.options.headerDocument;
-				return this.socket.sendMessage(this.jid, {
-					document: typeof source === 'string' ? { url: source } : source,
-					caption: text
-				} as any);
 			}
 
 			return this.socket.sendMessage(this.jid, { text } as any);

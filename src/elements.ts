@@ -88,12 +88,7 @@ export class RichMessageElement {
 		public readonly text: string,
 		public readonly options?: {
 			footer?: string;
-			header?: string;
-			headerImage?: string | Buffer;
-			headerVideo?: string | Buffer;
-			headerDocument?: string | Buffer;
-			headerDocumentMimetype?: string;
-			components?: (ButtonElement | LinkButtonElement | ListElement)[];
+			components?: (ButtonElement | LinkButtonElement)[];
 		}
 	) {}
 }
@@ -133,10 +128,10 @@ export class ListElement {
 	}
 }
 
-// Constructores funcionales y JSX (Soporte Dual Sobrecargado)
+// Constructores funcionales y JSX (Soporte Dual Sobrecargado - Firmas JSX primero)
 
-export function Image(source: string | Buffer, options?: { caption?: string }): ImageElement;
 export function Image(props: { url?: string; source?: string | Buffer; caption?: string; children?: any }): JSX.Element;
+export function Image(source: string | Buffer, options?: { caption?: string }): ImageElement;
 export function Image(sourceOrProps: any, options?: { caption?: string }): any {
 	if (sourceOrProps && typeof sourceOrProps === 'object' && !Buffer.isBuffer(sourceOrProps) && ('url' in sourceOrProps || 'source' in sourceOrProps)) {
 		return { $$typeof: Symbol.for('conversa.jsx'), type: 'Image', props: sourceOrProps };
@@ -144,8 +139,8 @@ export function Image(sourceOrProps: any, options?: { caption?: string }): any {
 	return new ImageElement(sourceOrProps, options);
 }
 
-export function Video(source: string | Buffer, options?: { caption?: string }): VideoElement;
 export function Video(props: { url?: string; source?: string | Buffer; caption?: string; children?: any }): JSX.Element;
+export function Video(source: string | Buffer, options?: { caption?: string }): VideoElement;
 export function Video(sourceOrProps: any, options?: { caption?: string }): any {
 	if (sourceOrProps && typeof sourceOrProps === 'object' && !Buffer.isBuffer(sourceOrProps) && ('url' in sourceOrProps || 'source' in sourceOrProps)) {
 		return { $$typeof: Symbol.for('conversa.jsx'), type: 'Video', props: sourceOrProps };
@@ -153,8 +148,8 @@ export function Video(sourceOrProps: any, options?: { caption?: string }): any {
 	return new VideoElement(sourceOrProps, options);
 }
 
-export function Audio(source: string | Buffer, options?: { ptt?: boolean }): AudioElement;
 export function Audio(props: { url?: string; source?: string | Buffer; ptt?: boolean; children?: any }): JSX.Element;
+export function Audio(source: string | Buffer, options?: { ptt?: boolean }): AudioElement;
 export function Audio(sourceOrProps: any, options?: { ptt?: boolean }): any {
 	if (sourceOrProps && typeof sourceOrProps === 'object' && !Buffer.isBuffer(sourceOrProps) && ('url' in sourceOrProps || 'source' in sourceOrProps)) {
 		return { $$typeof: Symbol.for('conversa.jsx'), type: 'Audio', props: sourceOrProps };
@@ -162,8 +157,8 @@ export function Audio(sourceOrProps: any, options?: { ptt?: boolean }): any {
 	return new AudioElement(sourceOrProps, options);
 }
 
-export function Document(source: string | Buffer, options?: { filename?: string; mimeType?: string }): DocumentElement;
 export function Document(props: { url?: string; source?: string | Buffer; filename?: string; mimeType?: string; children?: any }): JSX.Element;
+export function Document(source: string | Buffer, options?: { filename?: string; mimeType?: string }): DocumentElement;
 export function Document(sourceOrProps: any, options?: { filename?: string; mimeType?: string }): any {
 	if (sourceOrProps && typeof sourceOrProps === 'object' && !Buffer.isBuffer(sourceOrProps) && ('url' in sourceOrProps || 'source' in sourceOrProps)) {
 		return { $$typeof: Symbol.for('conversa.jsx'), type: 'Document', props: sourceOrProps };
@@ -171,8 +166,8 @@ export function Document(sourceOrProps: any, options?: { filename?: string; mime
 	return new DocumentElement(sourceOrProps, options);
 }
 
-export function Location(latitude: number, longitude: number, options?: { name?: string; address?: string }): LocationElement;
 export function Location(props: { latitude: number; longitude: number; name?: string; address?: string; children?: any }): JSX.Element;
+export function Location(latitude: number, longitude: number, options?: { name?: string; address?: string }): LocationElement;
 export function Location(latitudeOrProps: any, longitude?: number, options?: { name?: string; address?: string }): any {
 	if (latitudeOrProps && typeof latitudeOrProps === 'object' && ('latitude' in latitudeOrProps)) {
 		return { $$typeof: Symbol.for('conversa.jsx'), type: 'Location', props: latitudeOrProps };
@@ -180,8 +175,8 @@ export function Location(latitudeOrProps: any, longitude?: number, options?: { n
 	return new LocationElement(latitudeOrProps, longitude!, options);
 }
 
-export function Sticker(source: string | Buffer): StickerElement;
 export function Sticker(props: { url?: string; source?: string | Buffer; children?: any }): JSX.Element;
+export function Sticker(source: string | Buffer): StickerElement;
 export function Sticker(sourceOrProps: any): any {
 	if (sourceOrProps && typeof sourceOrProps === 'object' && !Buffer.isBuffer(sourceOrProps) && ('url' in sourceOrProps || 'source' in sourceOrProps)) {
 		return { $$typeof: Symbol.for('conversa.jsx'), type: 'Sticker', props: sourceOrProps };
@@ -189,8 +184,8 @@ export function Sticker(sourceOrProps: any): any {
 	return new StickerElement(sourceOrProps);
 }
 
-export function Button(options: { id?: string; label: string; onClick: (event: ClickEvent) => void | Promise<void> }): ButtonElement;
 export function Button(props: { id?: string; onClick?: (event: ClickEvent) => void | Promise<void>; children?: any }): JSX.Element;
+export function Button(options: { id?: string; label: string; onClick: (event: ClickEvent) => void | Promise<void> }): ButtonElement;
 export function Button(optionsOrProps: any): any {
 	if (optionsOrProps && 'label' in optionsOrProps && !('children' in optionsOrProps)) {
 		return new ButtonElement(optionsOrProps);
@@ -198,8 +193,8 @@ export function Button(optionsOrProps: any): any {
 	return { $$typeof: Symbol.for('conversa.jsx'), type: 'Button', props: optionsOrProps };
 }
 
-export function LinkButton(options: { label: string; url: string }): LinkButtonElement;
 export function LinkButton(props: { url: string; children?: any }): JSX.Element;
+export function LinkButton(options: { label: string; url: string }): LinkButtonElement;
 export function LinkButton(optionsOrProps: any): any {
 	if (optionsOrProps && 'label' in optionsOrProps && !('children' in optionsOrProps)) {
 		return new LinkButtonElement(optionsOrProps);
@@ -207,8 +202,8 @@ export function LinkButton(optionsOrProps: any): any {
 	return { $$typeof: Symbol.for('conversa.jsx'), type: 'LinkButton', props: optionsOrProps };
 }
 
-export function RichMessage(text: string, options?: { footer?: string; header?: string; headerImage?: string | Buffer; headerVideo?: string | Buffer; headerDocument?: string | Buffer; headerDocumentMimetype?: string; components?: (ButtonElement | LinkButtonElement | ListElement)[] }): RichMessageElement;
-export function RichMessage(props: { text?: string; footer?: string; header?: string; children?: any }): JSX.Element;
+export function RichMessage(props: { text?: string; footer?: string; children?: any }): JSX.Element;
+export function RichMessage(text: string, options?: { footer?: string; components?: (ButtonElement | LinkButtonElement)[] }): RichMessageElement;
 export function RichMessage(textOrProps: any, options?: any): any {
 	if (textOrProps && typeof textOrProps === 'object' && ('text' in textOrProps || 'children' in textOrProps)) {
 		return { $$typeof: Symbol.for('conversa.jsx'), type: 'RichMessage', props: textOrProps };
@@ -216,8 +211,8 @@ export function RichMessage(textOrProps: any, options?: any): any {
 	return new RichMessageElement(textOrProps, options);
 }
 
-export function List(id: string, config: { title: string; text: string; buttonText: string; sections: ListSectionOption[]; footer?: string }): ListElement;
 export function List(props: { id?: string; title: string; text: string; buttonText: string; footer?: string; children?: any }): JSX.Element;
+export function List(id: string, config: { title: string; text: string; buttonText: string; sections: ListSectionOption[]; footer?: string }): ListElement;
 export function List(idOrConfig: any, config?: any): any {
 	if (typeof idOrConfig === 'string' || (idOrConfig && 'sections' in idOrConfig)) {
 		return new ListElement(idOrConfig, config);
@@ -225,8 +220,8 @@ export function List(idOrConfig: any, config?: any): any {
 	return { $$typeof: Symbol.for('conversa.jsx'), type: 'List', props: idOrConfig };
 }
 
-export function Poll(name: string, options: string[], selectableCount?: number): PollElement;
 export function Poll(props: { name?: string; question?: string; selectableCount?: number; children?: any }): JSX.Element;
+export function Poll(name: string, options: string[], selectableCount?: number): PollElement;
 export function Poll(nameOrProps: any, options?: string[], selectableCount?: number): any {
 	if (nameOrProps && typeof nameOrProps === 'object' && !Array.isArray(nameOrProps) && ('name' in nameOrProps || 'question' in nameOrProps)) {
 		return { $$typeof: Symbol.for('conversa.jsx'), type: 'Poll', props: nameOrProps };

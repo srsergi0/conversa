@@ -42,20 +42,8 @@ export function compileJSX(node: any): PostableMessage {
 
 	switch (type) {
 		case 'RichMessage': {
-			const header = cProps.header;
 			const footer = cProps.footer;
-
 			let bodyText = cProps.text || '';
-			let headerImage: any = undefined;
-			let headerVideo: any = undefined;
-			let headerDocument: any = undefined;
-			let headerDocumentMimetype: string | undefined = undefined;
-			
-			// Objetos de ubicación y sticker independientes si no hay botones
-			let locationData: any = undefined;
-			let stickerData: any = undefined;
-			let audioData: any = undefined;
-
 			const components: any[] = [];
 
 			const processNodes = (nodes: any[]) => {
@@ -73,39 +61,6 @@ export function compileJSX(node: any): PostableMessage {
 						const childChildren = flattenChildren(childProps.children);
 
 						switch (childType) {
-							case 'Image':
-								headerImage = childProps.url || childProps.source;
-								if (childProps.caption) {
-									bodyText += (bodyText ? '\n' : '') + childProps.caption;
-								}
-								break;
-							case 'Video':
-								headerVideo = childProps.url || childProps.source;
-								if (childProps.caption) {
-									bodyText += (bodyText ? '\n' : '') + childProps.caption;
-								}
-								break;
-							case 'Audio':
-								audioData = {
-									source: childProps.url || childProps.source,
-									ptt: childProps.ptt
-								};
-								break;
-							case 'Document':
-								headerDocument = childProps.url || childProps.source;
-								headerDocumentMimetype = childProps.mimeType;
-								break;
-							case 'Location':
-								locationData = {
-									latitude: childProps.latitude,
-									longitude: childProps.longitude,
-									name: childProps.name,
-									address: childProps.address
-								};
-								break;
-							case 'Sticker':
-								stickerData = childProps.url || childProps.source;
-								break;
 							case 'Button': {
 								const label = childProps.label || childChildren.join(' ') || '';
 								const id = childProps.id;
@@ -119,28 +74,8 @@ export function compileJSX(node: any): PostableMessage {
 								components.push(new LinkButtonElement({ label, url }));
 								break;
 							}
-							case 'List': {
-								const listId = childProps.id || `list_${Math.random().toString(36).substring(2, 9)}`;
-								const listTitle = childProps.title || 'List';
-								const listText = childProps.text || 'Choose option';
-								const listButtonText = childProps.buttonText || 'Open Menu';
-								const listFooter = childProps.footer;
-								const listSections = compileListSections(childChildren, childProps);
-								
-								components.push(new ListElement(listId, {
-									title: listTitle,
-									text: listText,
-									buttonText: listButtonText,
-									footer: listFooter,
-									sections: listSections
-								}));
-								break;
-							}
 							default:
-								// Si es otro elemento anidado, procesar sus hijos
-								if (childProps.children) {
-									processNodes(flattenChildren(childProps.children));
-								}
+								// Ignorar cualquier otro tipo de elemento no soportado en un mensaje de texto con botones
 								break;
 						}
 					}
@@ -149,40 +84,11 @@ export function compileJSX(node: any): PostableMessage {
 
 			processNodes(children);
 
-			// Si hay botones interactivos o menú de lista, enviamos un RichMessageElement
 			if (components.length > 0) {
 				return new RichMessageElement(bodyText, {
-					header,
 					footer,
-					headerImage,
-					headerVideo,
-					headerDocument,
-					headerDocumentMimetype,
 					components
 				});
-			}
-
-			// Si no hay botones pero hay elementos multimedia independientes
-			if (headerImage) {
-				return new ImageElement(headerImage, { caption: bodyText });
-			}
-			if (headerVideo) {
-				return new VideoElement(headerVideo, { caption: bodyText });
-			}
-			if (audioData) {
-				return new AudioElement(audioData.source, { ptt: audioData.ptt });
-			}
-			if (headerDocument) {
-				return new DocumentElement(headerDocument, { filename: cProps.filename, mimeType: headerDocumentMimetype });
-			}
-			if (locationData) {
-				return new LocationElement(locationData.latitude, locationData.longitude, {
-					name: locationData.name,
-					address: locationData.address
-				});
-			}
-			if (stickerData) {
-				return new StickerElement(stickerData);
 			}
 
 			return bodyText;
@@ -242,7 +148,6 @@ export function compileJSX(node: any): PostableMessage {
 		}
 
 		default:
-			// Si el tag es desconocido o es un fragmento, compilar sus hijos
 			if (cProps.children) {
 				const compiledChildren = children.map(compileJSX);
 				if (compiledChildren.length === 1) {
