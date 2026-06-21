@@ -1,6 +1,7 @@
 import type { WAMessage } from 'baileys';
 import type { Thread } from './thread';
 import type { Message } from './message';
+import type { JSXNode } from './jsx-runtime';
 import type {
 	ImageElement,
 	VideoElement,
@@ -11,7 +12,8 @@ import type {
 	ButtonElement,
 	LinkButtonElement,
 	RichMessageElement,
-	ListElement
+	ListElement,
+	PollElement
 } from './elements';
 
 export interface Author {
@@ -88,7 +90,9 @@ export type PostableMessage =
 	| ButtonElement
 	| LinkButtonElement
 	| RichMessageElement
-	| ListElement;
+	| ListElement
+	| PollElement
+	| JSXNode;
 
 
 
