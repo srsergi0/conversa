@@ -211,7 +211,7 @@ export function RichMessage(textOrProps: any, options?: any): any {
 	return new RichMessageElement(textOrProps, options);
 }
 
-export function List(props: { id?: string; title: string; text: string; buttonText: string; footer?: string; children?: any }): JSX.Element;
+export function List(props: { id?: string; title?: string; text?: string; buttonText: string; footer?: string; children?: any }): JSX.Element;
 export function List(id: string, config: { title: string; text: string; buttonText: string; sections: ListSectionOption[]; footer?: string }): ListElement;
 export function List(idOrConfig: any, config?: any): any {
 	if (typeof idOrConfig === 'string' || (idOrConfig && 'sections' in idOrConfig)) {
@@ -231,11 +231,11 @@ export function Poll(nameOrProps: any, options?: string[], selectableCount?: num
 }
 
 // Componentes exclusivos de JSX
-export function Section(props: { title: string; children?: any }): JSX.Element {
+export function Section(props: { title?: string; children?: any }): JSX.Element {
 	return { $$typeof: Symbol.for('conversa.jsx'), type: 'Section', props } as any;
 }
 
-export function Row(props: { title: string; description?: string; onClick: (event: ClickEvent) => void | Promise<void>; children?: any }): JSX.Element {
+export function Row(props: { title?: string; description?: string; onClick: (event: ClickEvent) => void | Promise<void>; children?: any }): JSX.Element {
 	return { $$typeof: Symbol.for('conversa.jsx'), type: 'Row', props } as any;
 }
 

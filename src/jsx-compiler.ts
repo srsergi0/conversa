@@ -114,10 +114,25 @@ export function compileJSX(node: any): PostableMessage {
 
 		case 'List': {
 			const listId = cProps.id || `list_${Math.random().toString(36).substring(2, 9)}`;
-			const listTitle = cProps.title || 'List';
-			const listText = cProps.text || 'Choose option';
 			const listButtonText = cProps.buttonText || 'Open Menu';
 			const listFooter = cProps.footer;
+
+			// Extraer textos declarados como hijos directos
+			const listTexts = children.filter(c => typeof c === 'string' || typeof c === 'number').map(String);
+			let listTitle = cProps.title;
+			let listText = cProps.text;
+
+			if (listTexts.length >= 2) {
+				listTitle = listTitle || listTexts[0];
+				listText = listText || listTexts.slice(1).join('\n');
+			} else if (listTexts.length === 1) {
+				listTitle = listTitle || '';
+				listText = listText || listTexts[0];
+			} else {
+				listTitle = listTitle || '';
+				listText = listText || 'Choose option';
+			}
+
 			const listSections = compileListSections(children, cProps);
 
 			return new ListElement(listId, {
@@ -130,7 +145,8 @@ export function compileJSX(node: any): PostableMessage {
 		}
 
 		case 'Poll': {
-			const question = cProps.name || cProps.question || 'Choose option';
+			const pollTexts = children.filter(c => typeof c === 'string' || typeof c === 'number').map(String);
+			const question = cProps.name || cProps.question || pollTexts.join(' ') || 'Choose option';
 			const selectableCount = typeof cProps.selectableCount === 'number' ? cProps.selectableCount : 1;
 			
 			const options: string[] = [];
@@ -163,35 +179,46 @@ function compileListSections(children: any[], parentProps: any): any[] {
 	const sections: any[] = [];
 
 	children.forEach(child => {
-		if (!child || child.$$typeof !== JSX_SYMBOL) return;
+		if (!child) return;
+		if (typeof child === 'string' || typeof child === 'number') return;
 
-		if (child.type === 'Section') {
-			const secProps = child.props || {};
-			const secTitle = secProps.title || 'Section';
-			const rowChildren = flattenChildren(secProps.children);
-			const rows = compileListRows(rowChildren, parentProps);
-			sections.push({ title: secTitle, rows });
-		} else if (child.type === 'Row') {
-			let defaultSec = sections.find(s => s.title === 'Options');
-			if (!defaultSec) {
-				defaultSec = { title: 'Options', rows: [] };
-				sections.push(defaultSec);
-			}
-			const rowProps = child.props || {};
-			const rowChildren = flattenChildren(rowProps.children);
-			const rowTitle = rowProps.title || rowChildren.join(' ') || '';
-			const rowDesc = rowProps.description;
-			const rowClick = rowProps.onClick;
-
-			defaultSec.rows.push({
-				title: rowTitle,
-				description: rowDesc,
-				onClick: async (event: any) => {
-					if (rowClick) {
-						await rowClick(event);
-					}
+		if (child.$$typeof === JSX_SYMBOL) {
+			if (child.type === 'Section') {
+				const secProps = child.props || {};
+				const rowChildren = flattenChildren(secProps.children);
+				
+				// Extraer el título de la sección desde los nodos de texto
+				const secTexts = rowChildren.filter(c => typeof c === 'string' || typeof c === 'number').map(String);
+				const secTitle = secProps.title || secTexts[0] || 'Section';
+				
+				// Filtrar solo los Rows
+				const rowsOnly = rowChildren.filter(c => c && c.$$typeof === JSX_SYMBOL && c.type === 'Row');
+				const rows = compileListRows(rowsOnly, parentProps);
+				
+				sections.push({ title: secTitle, rows });
+			} else if (child.type === 'Row') {
+				let defaultSec = sections.find(s => s.title === 'Options');
+				if (!defaultSec) {
+					defaultSec = { title: 'Options', rows: [] };
+					sections.push(defaultSec);
 				}
-			});
+				const rowProps = child.props || {};
+				const rowChildren = flattenChildren(rowProps.children);
+				const rowTexts = rowChildren.filter(c => typeof c === 'string' || typeof c === 'number').map(String);
+				const rowTitle = rowProps.title || rowTexts.join(' ') || '';
+				const rowDesc = rowProps.description;
+				const rowClick = rowProps.onClick;
+
+				defaultSec.rows.push({
+					title: rowTitle,
+					description: rowDesc,
+					onClick: async (event: any) => {
+						if (rowClick) {
+							await rowClick(event);
+						}
+					}
+				});
+			}
 		}
 	});
 
@@ -205,7 +232,8 @@ function compileListRows(children: any[], parentProps: any): any[] {
 
 		const rowProps = child.props || {};
 		const rowChildren = flattenChildren(rowProps.children);
-		const rowTitle = rowProps.title || rowChildren.join(' ') || '';
+		const rowTexts = rowChildren.filter(c => typeof c === 'string' || typeof c === 'number').map(String);
+		const rowTitle = rowProps.title || rowTexts.join(' ') || '';
 		const rowDesc = rowProps.description;
 		const rowClick = rowProps.onClick;
 
