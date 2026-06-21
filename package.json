@@ -1,0 +1,27 @@
+{
+  "name": "conversa",
+  "version": "1.0.0",
+  "description": "Una capa de abstracción sencilla y orientada a eventos para interactuar con sockets conversacionales.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "keywords": [
+    "chat",
+    "sdk",
+    "baileys",
+    "conversa",
+    "bot"
+  ],
+  "author": "",
+  "license": "MIT",
+  "peerDependencies": {
+    "baileys": "^7.0.0-rc13"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
