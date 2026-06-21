@@ -1,7 +1,18 @@
 import type { WAMessage } from 'baileys';
 import type { Thread } from './thread';
 import type { Message } from './message';
-import type { Button } from './button';
+import type {
+	ImageElement,
+	VideoElement,
+	AudioElement,
+	DocumentElement,
+	LocationElement,
+	StickerElement,
+	ButtonElement,
+	LinkButtonElement,
+	RichMessageElement,
+	ListElement
+} from './elements';
 
 export interface Author {
 	id: string; // El JID o identificador del participante
@@ -42,6 +53,16 @@ export interface PostableButtons {
 	buttons: ButtonOption[];
 }
 
+export interface GroupHelper {
+	add: (jid: string) => Promise<any>;
+	remove: (jid: string) => Promise<any>;
+	promote: (jid: string) => Promise<any>;
+	demote: (jid: string) => Promise<any>;
+	setSubject: (subject: string) => Promise<any>;
+	setDescription: (description: string) => Promise<any>;
+	leave: () => Promise<any>;
+}
+
 export interface ConversaContext {
 	sessionId: string;
 	thread: Thread;
@@ -51,8 +72,23 @@ export interface ConversaContext {
 	isMention: boolean;
 	reply: (content: PostableMessage) => Promise<any>;
 	react: (emoji: string) => Promise<any>;
+	group?: GroupHelper;
 }
 
-export type PostableMessage = string | PostableObject | PostableButtons | Button;
+export type PostableMessage =
+	| string
+	| PostableObject
+	| PostableButtons
+	| ImageElement
+	| VideoElement
+	| AudioElement
+	| DocumentElement
+	| LocationElement
+	| StickerElement
+	| ButtonElement
+	| LinkButtonElement
+	| RichMessageElement
+	| ListElement;
+
 
 

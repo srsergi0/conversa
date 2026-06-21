@@ -26,7 +26,13 @@ export interface FilteredChat {
 	onReaction: (handler: ContextReactionHandler) => void;
 }
 
-// Registro persistente de callbacks estables (Propuesta A - new Button)
+interface CommandDefinition {
+	regex: RegExp;
+	keys: { name: string; type: string }[];
+	handler: (ctx: ConversaContext, params: any) => void | Promise<void>;
+}
+
+// Registro persistente de callbacks estables (Propuesta A - new Button / List)
 const stableCallbacks = new Map<string, Function>();
 
 export function registerStableCallback(buttonId: string, index: number, fn: Function) {
@@ -70,11 +76,12 @@ export class Chat {
 	private reactionHandlers: ReactionHandler[] = [];
 	private newMessageHandlers: { pattern: RegExp; handler: NewMessageHandler }[] = [];
 
-	// Nuevos filtros de enrutamiento y eventos de socket
+	// Nuevos filtros de enrutamiento, comandos y eventos de socket
 	private messageFilters: { criteria: FilterCriteria; handler: ContextMessageHandler }[] = [];
 	private reactionFilters: { criteria: FilterCriteria; handler: ContextReactionHandler }[] = [];
 	private connectionHandlers: ConnectionStateHandler[] = [];
 	private qrHandlers: QRCodeHandler[] = [];
+	private commands: CommandDefinition[] = [];
 
 	constructor(
 		public readonly sessionId: string,
@@ -141,7 +148,7 @@ export class Chat {
 		this.newMessageHandlers.push({ pattern, handler });
 	}
 
-	// --- NUEVA API DE ENRUTAMIENTO FLUIDO Y EVENTOS ---
+	// --- NUEVA API DE ENRUTAMIENTO FLUIDO, COMANDOS Y EVENTOS ---
 	
 	public onMessage(handler: ContextMessageHandler) {
 		this.messageFilters.push({ criteria: {}, handler });
@@ -174,6 +181,35 @@ export class Chat {
 			onMessage: (handler) => this.messageFilters.push({ criteria: { type: 'thread', jid }, handler }),
 			onReaction: (handler) => this.reactionFilters.push({ criteria: { type: 'thread', jid }, handler })
 		};
+	}
+
+	/**
+	 * Registra un comando modular con análisis de parámetros tipados (ej: '/ticket <id:number>')
+	 */
+	public command(pattern: string, handler: (ctx: ConversaContext, params: any) => void | Promise<void>) {
+		const keys: { name: string; type: string }[] = [];
+		const parts = pattern.split(/\s+/);
+		
+		const regexParts = parts.map(part => {
+			const paramMatch = part.match(/^<([a-zA-Z0-9_]+)(?::(number|string))?>$/);
+			if (paramMatch) {
+				const name = paramMatch[1];
+				const type = paramMatch[2] || 'string';
+				keys.push({ name, type });
+				if (type === 'number') {
+					return '(\\d+)';
+				}
+				return '(\\S+)';
+			}
+			return part.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+		});
+
+		const commandRegex = new RegExp('^' + regexParts.join('\\s+'), 'i');
+		this.commands.push({
+			regex: commandRegex,
+			keys,
+			handler
+		});
 	}
 
 	// ----------------------------------------
@@ -264,7 +300,7 @@ export class Chat {
 			return; // Evitar procesar reacciones como mensajes de texto normales
 		}
 
-		// 2. Interceptar Respuestas de Botones Interactivos
+		// 2. Interceptar Respuestas de Botones Interactivos / Listas
 		let buttonId: string | undefined;
 		let buttonLabel: string | undefined;
 
@@ -294,16 +330,29 @@ export class Chat {
 			buttonId = buttonsResp.selectedButtonId;
 		}
 
+		// Baileys lista de un solo select (single select) retorna el ID en listResponseMessage
+		const listResp = unwrapped.listResponseMessage;
+		if (listResp) {
+			buttonLabel = listResp.title;
+			buttonId = listResp.singleSelectReply?.selectedRowId;
+		}
+
 		if (buttonId) {
 			let callback: Function | undefined;
 
-			// Intentar parsear el buttonId para ver si viene del sistema persistente (Propuesta A) o débil
+			// Intentar parsear el buttonId
 			try {
 				const parsed = JSON.parse(buttonId);
 				if (parsed && typeof parsed === 'object') {
-					if ('stableId' in parsed && 'index' in parsed) {
+					if ('stableId' in parsed && 'sec' in parsed && 'row' in parsed) {
+						// Click en fila de Lista interactiva persistente
+						const rowKey = `${parsed.stableId}:${parsed.sec}:${parsed.row}`;
+						callback = getStableCallback(rowKey, 0);
+					} else if ('stableId' in parsed && 'index' in parsed) {
+						// Click en botón persistente
 						callback = getStableCallback(parsed.stableId, parsed.index);
 					} else if ('click' in parsed) {
+						// Click en botón de memoria temporal (WeakRef)
 						callback = getCallback(parsed.click);
 					}
 				}
@@ -333,11 +382,11 @@ export class Chat {
 				} catch (err) {
 					console.error('[Conversa SDK] Error al ejecutar callback de botón:', err);
 				}
-				return; // Detener flujo para no procesar el click como mensaje de texto normal
+				return; // Detener flujo
 			}
 		}
 
-		// 3. Flujo normal de Mensajes de Texto
+		// 3. Flujo normal de Mensajes de Texto y comandos
 		const text = this.extractText(rawMessage);
 		const authorId = rawMessage.key.participant || rawMessage.key.remoteJid || '';
 
@@ -359,7 +408,7 @@ export class Chat {
 		const thread = new Thread(`${this.sessionId}:${jid}`, this.sessionId, jid, this.socket);
 		const channel = new Channel(`${this.sessionId}:${jid}`, jid, isGroup);
 
-		// --- EJECUTAR NUEVA API DE ENRUTAMIENTO FLUIDO (ONMESSAGE) ---
+		// Construir contexto ConversaContext
 		const ctx: ConversaContext = {
 			sessionId: this.sessionId,
 			thread,
@@ -368,9 +417,42 @@ export class Chat {
 			text,
 			isMention: message.isMention,
 			reply: (content) => thread.post(content),
-			react: (emoji) => thread.react(emoji, message.id)
+			react: (emoji) => thread.react(emoji, message.id),
+			group: isGroup ? {
+				add: (p: string) => this.socket.groupParticipantsUpdate(jid, [p], 'add'),
+				remove: (p: string) => this.socket.groupParticipantsUpdate(jid, [p], 'remove'),
+				promote: (p: string) => this.socket.groupParticipantsUpdate(jid, [p], 'promote'),
+				demote: (p: string) => this.socket.groupParticipantsUpdate(jid, [p], 'demote'),
+				setSubject: (sub: string) => this.socket.groupUpdateSubject(jid, sub),
+				setDescription: (desc: string) => this.socket.groupUpdateDescription(jid, desc),
+				leave: () => this.socket.groupLeave(jid)
+			} : undefined
 		};
 
+		// A. Ejecutar Comandos Modulares con parámetros parsed
+		for (const cmd of this.commands) {
+			const match = text.match(cmd.regex);
+			if (match) {
+				const params: any = {};
+				cmd.keys.forEach((key, idx) => {
+					const val = match[idx + 1];
+					if (key.type === 'number') {
+						params[key.name] = Number(val);
+					} else {
+						params[key.name] = val;
+					}
+				});
+
+				try {
+					await cmd.handler(ctx, params);
+					return; // Detener flujo si coincide un comando
+				} catch (err) {
+					console.error(`[Conversa] Error al ejecutar comando "${cmd.regex}":`, err);
+				}
+			}
+		}
+
+		// B. Ejecutar Filtros Nuevos de Enrutamiento fluido
 		for (const { criteria, handler } of this.messageFilters) {
 			if (criteria.type === 'dm' && isGroup) continue;
 			if (criteria.type === 'group' && !isGroup) continue;
@@ -382,9 +464,8 @@ export class Chat {
 				console.error(`[Conversa] Error en filtro de mensaje de la sesión "${this.sessionId}":`, err);
 			}
 		}
-		// -------------------------------------------------------------
 
-		// A. Mensajes Directos (DMs - Legado)
+		// C. Mensajes Directos (DMs - Legado)
 		if (!isGroup) {
 			for (const handler of this.dmHandlers) {
 				try {
@@ -395,7 +476,7 @@ export class Chat {
 			}
 		}
 
-		// B. Mensajes Suscritos (Legado)
+		// D. Mensajes Suscritos (Legado)
 		for (const handler of this.subscribedHandlers) {
 			try {
 				await handler(thread, message);
@@ -404,7 +485,7 @@ export class Chat {
 			}
 		}
 
-		// C. Comandos con Patrón Regex (Legado)
+		// E. Comandos con Patrón Regex (Legado)
 		for (const { pattern, handler } of this.newMessageHandlers) {
 			if (pattern.test(text)) {
 				try {

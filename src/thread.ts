@@ -1,7 +1,18 @@
 import type { WASocket } from 'baileys';
 import type { PostableMessage, PostableButtons } from './types';
 import { registerCallback } from './chat';
-import { Button } from './button';
+import {
+	ImageElement,
+	VideoElement,
+	AudioElement,
+	DocumentElement,
+	LocationElement,
+	StickerElement,
+	ButtonElement,
+	LinkButtonElement,
+	RichMessageElement,
+	ListElement
+} from './elements';
 
 export class Thread {
 	constructor(
@@ -19,23 +30,105 @@ export class Thread {
 			return this.socket.sendMessage(this.jid, { text: content });
 		}
 
-		// 1. Manejar clase Button persistente (Propuesta A)
-		if (content instanceof Button) {
-			const buttonsContent = content.config;
-			const text = buttonsContent.text;
-			const footer = buttonsContent.footer;
-			const header = buttonsContent.header;
-			
-			const formattedButtons = buttonsContent.buttons.map((btn, index) => {
-				const buttonIdJson = JSON.stringify({
-					stableId: content.id,
-					index: index
-				});
+		// 1. Manejar Elementos Multimedia y Ubicación Declarativos
+		if (content instanceof ImageElement) {
+			const source = content.source;
+			const payload: any = {};
+			if (typeof source === 'string') {
+				payload.image = { url: source };
+			} else {
+				payload.image = source;
+			}
+			if (content.options?.caption) {
+				payload.caption = content.options.caption;
+			}
+			return this.socket.sendMessage(this.jid, payload as any);
+		}
+
+		if (content instanceof VideoElement) {
+			const source = content.source;
+			const payload: any = {};
+			if (typeof source === 'string') {
+				payload.video = { url: source };
+			} else {
+				payload.video = source;
+			}
+			if (content.options?.caption) {
+				payload.caption = content.options.caption;
+			}
+			return this.socket.sendMessage(this.jid, payload as any);
+		}
+
+		if (content instanceof AudioElement) {
+			const source = content.source;
+			const payload: any = {};
+			if (typeof source === 'string') {
+				payload.audio = { url: source };
+			} else {
+				payload.audio = source;
+			}
+			if (content.options?.ptt) {
+				payload.ptt = true;
+			}
+			return this.socket.sendMessage(this.jid, payload as any);
+		}
+
+		if (content instanceof DocumentElement) {
+			const source = content.source;
+			const payload: any = {};
+			if (typeof source === 'string') {
+				payload.document = { url: source };
+			} else {
+				payload.document = source;
+			}
+			if (content.options?.filename) {
+				payload.fileName = content.options.filename;
+			}
+			if (content.options?.mimeType) {
+				payload.mimetype = content.options.mimeType;
+			}
+			return this.socket.sendMessage(this.jid, payload as any);
+		}
+
+		if (content instanceof LocationElement) {
+			return this.socket.sendMessage(this.jid, {
+				location: {
+					degreesLatitude: content.latitude,
+					degreesLongitude: content.longitude,
+					name: content.options?.name,
+					address: content.options?.address
+				}
+			} as any);
+		}
+
+		if (content instanceof StickerElement) {
+			const source = content.source;
+			const payload: any = {};
+			if (typeof source === 'string') {
+				payload.sticker = { url: source };
+			} else {
+				payload.sticker = source;
+			}
+			return this.socket.sendMessage(this.jid, payload as any);
+		}
+
+		// 2. Manejar Clase List (Menú Desplegable)
+		if (content instanceof ListElement) {
+			const config = content.config;
+			const formattedSections = config.sections.map((section, secIndex) => {
 				return {
-					name: 'quick_reply',
-					buttonParamsJson: JSON.stringify({
-						display_text: btn.label,
-						id: buttonIdJson
+					title: section.title,
+					rows: section.rows.map((row, rowIndex) => {
+						const rowKey = JSON.stringify({
+							stableId: content.id,
+							sec: secIndex,
+							row: rowIndex
+						});
+						return {
+							title: row.title,
+							description: row.description,
+							id: rowKey
+						};
 					})
 				};
 			});
@@ -44,18 +137,26 @@ export class Thread {
 				viewOnceMessage: {
 					message: {
 						interactiveMessage: {
-							header: header ? {
-								title: header,
+							header: {
+								title: config.title,
 								hasMediaAttachment: false
-							} : undefined,
-							body: {
-								text: text
 							},
-							footer: footer ? {
-								text: footer
+							body: {
+								text: config.text
+							},
+							footer: config.footer ? {
+								text: config.footer
 							} : undefined,
 							nativeFlowMessage: {
-								buttons: formattedButtons
+								buttons: [
+									{
+										name: 'single_select',
+										buttonParamsJson: JSON.stringify({
+											title: config.buttonText,
+											sections: formattedSections
+										})
+									}
+								]
 							}
 						}
 					}
@@ -65,7 +166,70 @@ export class Thread {
 			return this.socket.sendMessage(this.jid, payload as any);
 		}
 
-		// 2. Manejar objeto plano de botones interactivos (in-memory WeakRef fallback)
+		// 3. Manejar Componente RichMessage (Árbol de Componentes de Mensajes Interactivos)
+		if (content instanceof RichMessageElement) {
+			const text = content.text;
+			const footer = content.options?.footer;
+			const header = content.options?.header;
+			const components = content.options?.components || [];
+
+			if (components.length > 0) {
+				const formattedButtons = components.map(comp => {
+					if (comp instanceof ButtonElement) {
+						const buttonIdJson = JSON.stringify(
+							comp.isStable 
+								? { stableId: comp.clickId, index: 0 }
+								: { click: comp.clickId }
+						);
+						return {
+							name: 'quick_reply',
+							buttonParamsJson: JSON.stringify({
+								display_text: comp.label,
+								id: buttonIdJson
+							})
+						};
+					} else {
+						// LinkButtonElement
+						return {
+							name: 'cta_url',
+							buttonParamsJson: JSON.stringify({
+								display_text: comp.label,
+								url: comp.url,
+								merchant_url: comp.url
+							})
+						};
+					}
+				});
+
+				const payload = {
+					viewOnceMessage: {
+						message: {
+							interactiveMessage: {
+								header: header ? {
+									title: header,
+									hasMediaAttachment: false
+								} : undefined,
+								body: {
+									text: text
+								},
+								footer: footer ? {
+									text: footer
+								} : undefined,
+								nativeFlowMessage: {
+									buttons: formattedButtons
+								}
+							}
+						}
+					}
+				};
+
+				return this.socket.sendMessage(this.jid, payload as any);
+			}
+
+			return this.socket.sendMessage(this.jid, { text } as any);
+		}
+
+		// 4. Fallback de Mensaje con Botones Plano (Legacy)
 		if (typeof content === 'object' && 'buttons' in content) {
 			const buttonsContent = content as PostableButtons;
 			const text = buttonsContent.text;
@@ -111,11 +275,12 @@ export class Thread {
 			return this.socket.sendMessage(this.jid, payload as any);
 		}
 
-		// 3. Manejar mensajes de texto y multimedia ordinarios
-		const textContent = content.text || content.raw || content.markdown || '';
+		// 5. Fallback de Mensajes de Texto y Multimedia ordinarios
+		const anyContent = content as any;
+		const textContent = anyContent.text || anyContent.raw || anyContent.markdown || '';
 
-		if (content.files && content.files.length > 0) {
-			const file = content.files[0];
+		if (anyContent.files && anyContent.files.length > 0) {
+			const file = anyContent.files[0];
 			let mediaType: 'image' | 'video' | 'audio' | 'document' = 'document';
 			const mime = file.mimeType || '';
 			
@@ -153,7 +318,7 @@ export class Thread {
 			return this.socket.sendMessage(this.jid, payload as any);
 		}
 
-		return this.socket.sendMessage(this.jid, { text: textContent });
+		return this.socket.sendMessage(this.jid, { text: textContent } as any);
 	}
 
 	/**
